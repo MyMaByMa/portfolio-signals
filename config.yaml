@@ -20,19 +20,19 @@ universe:
     - KOMB.PR
     - CZG.PR
     - CEZ1.CZ
-    - ASML.US
-    - NVO.US
-    - ACLS.US
-    - MDLZ.US
-    - KO.US
-    - EXAS.US
-    - CIVI.US
-    - LPG.US
-    - IMVT.US
-    - FIVN.US
-    - ANGI.US
-    - OXSQ.US
-    - MSFT.US
+    - ASML
+    - NVO
+    - ACLS
+    - MDLZ
+    - KO
+    - EXAS
+    - CIVI
+    - LPG
+    - IMVT
+    - FIVN
+    - ANGI
+    - OXSQ
+    - MSFT
     
   watchlist:
     - NVDA

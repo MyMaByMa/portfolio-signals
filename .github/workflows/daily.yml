@@ -1,0 +1,29 @@
+name: daily-signals
+on:
+  workflow_dispatch:            # ruční spuštění v Actions
+  push:                          # spustí se i po commitu změn
+    paths:
+      - '**.py'
+      - 'config.yaml'
+      - '.github/workflows/daily.yml'
+      - 'templates/**'
+  schedule:
+    - cron: "30 5 * * *"        # 05:30 UTC denně (změň, chceš-li jiný čas)
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python daily_run.py
+      - name: Commit report
+        run: |
+          git config user.name "signals-bot"
+          git config user.email "actions@github.com"
+          git add report/*
+          git commit -m "Daily report" || echo "no changes"
+          git push

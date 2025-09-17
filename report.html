@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8"/>
+<title>Denní signály – Guru‑mix</title>
+<style>
+ body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+ h1 { margin: 0 0 8px 0; }
+ table { border-collapse: collapse; width: 100%; }
+ th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+ tr:hover { background: #fafafa; }
+ .BUY { background: #e8f7ee; }
+ .HOLD { background: #f6f8fa; }
+ .TRIM { background: #fff3e6; }
+ .bad { color: #b00020; font-weight: 600; }
+ .good { color: #006400; font-weight: 600; }
+ .tag { padding: 2px 6px; border-radius: 6px; font-size: 12px; }
+ .tag-bucket { background:#eef; color:#223; }
+ .tag-eblk { background:#ffe6e6; color:#b00020; }
+</style>
+</head>
+<body>
+<h1>Denní signály – Guru‑mix</h1>
+<p>Aktualizováno: {{ updated }}</p>
+<table>
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Koš</th>
+      <th>Signál</th>
+      <th>Guru‑mix</th>
+      <th>Buffett</th><th>Graham</th><th>Greenblatt</th><th>Raschke</th>
+      <th>Lynch</th><th>Icahn</th><th>Ackman</th>
+      <th>Cena</th><th>RSI</th><th>% pod 52W high</th>
+      <th>Poznámka</th><th>Blackout</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="{{ r['signal'] }}">
+      <td><b>{{ r['ticker'] }}</b></td>
+      <td><span class="tag tag-bucket">{{ r['bucket'] }}</span></td>
+      <td><b>{{ r['signal'] }}</b></td>
+      <td>{{ "%.0f"|format(r['guru_mix']) }}</td>
+      <td>{{ "%.0f"|format(r['buffett']) }}</td>
+      <td>{{ "%.0f"|format(r['graham']) }}</td>
+      <td>{{ "%.0f"|format(r['greenblatt']) }}</td>
+      <td>{{ "%.0f"|format(r['raschke']) }}</td>
+      <td>{{ "%.0f"|format(r['lynch']) }}</td>
+      <td>{{ "%.0f"|format(r['icahn']) }}</td>
+      <td>{{ "%.0f"|format(r['ackman']) }}</td>
+      <td>{{ "%.2f"|format(r['close']) }}</td>
+      <td>{{ "%.1f"|format(r['rsi']) }}</td>
+      <td>{{ "%.1f"|format(r['dist_hi_pct']) }}</td>
+      <td>{{ r['why'] }}</td>
+      <td>{% if r['earnings_blackout'] %}<span class="tag tag-eblk">Earnings okno</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p style="margin-top:12px;color:#666">Pozn.: Guru‑mix využívá veřejně dostupná data z Yahoo Finance. Pokud některé fundamentální hodnoty chybí, skóre částečně degraduje na technická kritéria.</p>
+</body>
+</html>

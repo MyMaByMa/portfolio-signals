@@ -1,0 +1,52 @@
+run_time_utc: "05:30"   # kdy má akce běžet (UTC)
+universe:
+  portfolio:
+    - GOOGL
+    - META
+    - MU
+    - VKTX
+    - PK
+    - BRZE
+    - VALE
+    - PBR
+    - PBRA
+    - RHM.DE
+    - HAG.DE
+    - TKA.DE
+    - SAAB-B.ST
+    - BA.L
+    - LDO.MI
+    - HO.PA
+    - KOMB.PR
+    - CZG.PR
+  watchlist:
+    - NVDA
+    - ASML.AS
+    - ARM
+    - TSM
+    - NVO
+limits:
+  max_weight_per_ticker: 0.07
+  max_weight_defense: 0.20
+  max_weight_commodities_latam: 0.08
+  max_weight_biotech: 0.03
+
+watchlist_rules:
+  min_history_days: 252
+  needs_close_above_sma50: true
+  needs_close_above_sma200: true
+  rsi_min: 45
+  rsi_max: 65
+  min_dist_from_52w_high: 0.05
+  min_vol_ratio_20d: 1.2
+  earnings_blackout_days: 1
+  confirm_days: 3
+
+weights:
+  buffett: 25
+  graham: 20
+  greenblatt: 15
+  raschke: 10
+  lynch: 15
+  icahn: 7.5
+  ackman: 7.5

@@ -1,14 +1,18 @@
 name: daily-signals
+
 on:
-  workflow_dispatch:            # ruční spuštění v Actions
-  push:                          # spustí se i po commitu změn
+  workflow_dispatch:
+  push:
     paths:
       - '**.py'
       - 'config.yaml'
       - '.github/workflows/daily.yml'
       - 'templates/**'
   schedule:
-    - cron: "30 5 * * *"        # 05:30 UTC denně (změň, chceš-li jiný čas)
+    - cron: "30 5 * * *"   # 05:30 UTC denně
+
+permissions:
+  contents: write   # <-- tady, top-level blok
 
 jobs:
   run:

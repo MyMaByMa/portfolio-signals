@@ -211,5 +211,12 @@ filters:
   earnings_blackout_days: 1     # nekupuj X dnů okolo výsledků
   skip_tickers: []              # seznam tickerů, které (dočasně) ignorovat
 
+risk:
+  capital_total: 25000        # celkový kapitál pro plánování (číslo bez mezer)
+
+allocation:
+  max_pos_weight: 0.12        # max 12 % na jednu pozici
+  min_pos_weight: 0.01        # min 1 % na jednu pozici
+
 execution:
-  lot_size: 1                 # velikost lotu (u US akcií 1; u jiných uprav)
+  lot_size: 1                 # velikost lotu (u US akcií 1)

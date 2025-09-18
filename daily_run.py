@@ -285,7 +285,73 @@ def main():
         })
 
     out = pd.DataFrame(rows).sort_values(["bucket", "signal", "guru_mix"], ascending=[True, True, False])
-        # uložím výstupy
+
+      # --- Build targets & trade plan ---------------------------------
+    # načti aktuální pozice
+    pos_list = read_positions("positions.csv")           # [{ticker, shares, cost_basis}, ...]
+    cur_shares = {p["ticker"]: float(p["shares"]) for p in pos_list}
+
+    # připrav data z výstupu
+    df = out.copy()                                      # out = DataFrame s tickery, signal, guru_mix, close, ...
+    df = df.set_index("ticker", drop=False)
+
+    # skóre 0–100 -> váha 0–20 (jemné škálování pro alokace)
+    df["gm20"] = (df["guru_mix"] / 5.0).clip(0, 20)
+
+    # vezmeme jen BUY tickery
+    buy = df[df["signal"] == "BUY"].copy()
+
+    # když není co kupovat, udělej prázdné výstupy
+    if buy.empty:
+        targets = pd.DataFrame(columns=["ticker", "target_w", "target_val", "target_shares"])
+        plan = pd.DataFrame(columns=["ticker", "action", "qty", "note"])
+    else:
+        capital = float(cfg["risk"]["capital_total"])
+        max_w = float(cfg["allocation"]["max_pos_weight"])
+        min_w = float(cfg["allocation"]["min_pos_weight"])
+        lot   = int(cfg["allocation"].get("lot_size", 1))
+
+        # surové váhy z gm20
+        w_raw = buy["gm20"]
+        w = w_raw / w_raw.sum()
+
+        # omez minimem/maximem
+        w = w.clip(lower=min_w, upper=max_w)
+
+        # renormalizace aby suma <= 1.0
+        s = w.sum()
+        if s > 1.0:
+            w = w / s
+
+        # cílová hodnota a počty kusů
+        tgt_val = (capital * w).rename("target_val")
+        tgt_sh = (tgt_val / buy["close"])
+        if lot > 1:
+            tgt_sh = (tgt_sh / lot).round() * lot
+        else:
+            tgt_sh = tgt_sh.round()
+
+        targets = pd.DataFrame({
+            "ticker": w.index,
+            "target_w": w.values.round(4),
+            "target_val": tgt_val.values.round(2),
+            "target_shares": tgt_sh.astype(int).values
+        })
+
+        # obchodní plán = rozdíl proti aktuálním pozicím
+        orders = []
+        for tkr, t_sh in tgt_sh.items():
+            have = int(round(cur_shares.get(tkr, 0)))
+            d = int(t_sh) - have
+            if d > 0:
+                orders.append((tkr, "BUY",  d, f"to reach {int(t_sh)}"))
+            elif d < 0:
+                orders.append((tkr, "SELL", -d, f"to reduce to {int(t_sh)}"))
+
+        plan = pd.DataFrame(orders, columns=["ticker", "action", "qty", "note"])
+
+  
+  # uložím výstupy
     os.makedirs("report", exist_ok=True)
     out.to_csv(os.path.join("report", "report.csv"), index=False)
     targets.to_csv(os.path.join("report", "targets.csv"), index=False)

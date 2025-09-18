@@ -2,7 +2,7 @@ run_time_utc: "05:30"   # kdy má akce běžet (UTC)
 universe:
   portfolio:
     - GOOGL
-    - META
+    - ABEA.DE
     - MU
     - VKTX
     - PK
@@ -16,7 +16,6 @@ universe:
     - SAAB-B.ST
     - BA.L
     - LDO.MI
-    - HO.PA
     - KOMB.PR
     - CZG.PR
     - CEZ1.CZ
@@ -35,11 +34,61 @@ universe:
     - MSFT
     
   watchlist:
-    - NVDA
-    - ASML.AS
-    - ARM
-    - TSM
-    - NVO
+    universe:
+  watchlist:
+    - "NVDA"
+    - "AMD"
+    - "AVGO"
+    - "LRCX"
+    - "KLAC"
+    - "TSM"
+    - "LMT"
+    - "NOC"
+    - "RTX"
+    - "GD"
+    - "MSFT"
+    - "ADBE"
+    - "ORCL"
+    - "CRM"
+    - "COST"
+    - "WMT"
+    - "PG"
+    - "PEP"
+    - "LLY"
+    - "TMO"
+    - "SYK"
+    - "LIN"
+    - "HON"
+    - "CAT"
+    - "XOM"
+    - "CVX"
+    - "COP"
+    - "SLB"
+    - "AIR.PA"
+    - "PLTR"
+    - "NOW"
+    - "AXP"
+    - "GS"
+    - "C"
+    - "CPB"
+    - "STZ"
+    - "BMY"
+    - "META"
+    - "CLX"
+    - "PYPL"
+    - "ABNB"
+    - "CRWD"
+    - "MELI"
+    - "ISRG"
+    - "SHOP"
+    - "AMZN"
+    - "YUMC"
+    - "BABA"
+    - "BIDU"
+    - "TCEHY"
+    - "JD"
+    - "GSK"
+    
 limits:
   max_weight_per_ticker: 0.07
   max_weight_defense: 0.20
@@ -65,3 +114,98 @@ weights:
   lynch: 15
   icahn: 7.5
   ackman: 7.5
+
+# --- ALLOCATION RULES & LIMITS ---
+
+allocation:
+  # jak cílově rozložit portfolio
+  mode: equal_weight        # (equal_weight | volatility | custom)
+  target_weight: 0.05       # 5 % na jednu pozici (cílově)
+  max_weight: 0.12          # strop pro jednu pozici (12 %)
+  min_weight: 0.01          # minimální smysluplná velikost (1 %)
+  max_positions: 30         # max počet držených titulů
+  cash_buffer: 0.10         # 10 % držet v hotovosti (rezerva na dipy)
+
+  # sektorové stropy (aby nebyl přestřelený jeden sektor)
+  sector_caps:
+    Defense: 0.35
+    Tech: 0.45
+    Materials: 0.30
+    Energy: 0.30
+    Financials: 0.30
+    Healthcare: 0.35
+    RealEstate: 0.25
+    Utilities: 0.30
+    Industrials: 0.35
+    Consumer: 0.35
+
+  # ruční mapování ticker -> sektor (jen co držíš/řešíš)
+  sector_by_ticker:
+    GOOGL: Tech
+    ABEA.DE: Tech
+    MU: Tech
+    BRZE: Tech
+    ACLS: Tech
+    EXAS: Healthcare
+    IMVT: Healthcare
+    FIVN: Tech
+    VKTX: Healthcare
+
+    RHM.DE: Defense
+    HAG.DE: Defense
+    SAAB-B.ST: Defense
+    LDO.MI: Defense
+    CZG.PR: Defense
+    BA.L: Defense
+    TKA.DE: Industrials
+
+    KOMB.PR: Financials
+    PK: RealEstate
+    VALE: Materials
+    PBR: Energy
+    PBR-A: Energy
+    CEZ.PR: Utilities
+    KO: Consumer
+    MDLZ: Consumer
+    LPG: Energy
+    NVO: Healthcare
+    ASML: Tech
+
+risk:
+  # jednoduché řízení rizika a výstupy
+  risk_per_trade: 0.01        # max 1 % portfolia v riziku na novou pozici (pro poziční sizing podle ATR – volitelně)
+  hard_stop_pct: 0.20         # nouzový stop přes -20 % od cost_basis (pokud se používá)
+  trailing_atr_mult: 3.0      # trailing stop 3x ATR (volitelně)
+  take_profit_ladders:        # zámky části zisku (volitelně)
+    - { gain_pct: 0.15, trim_pct: 0.15 }
+    - { gain_pct: 0.25, trim_pct: 0.10 }
+    - { gain_pct: 0.40, trim_pct: 0.10 }
+
+rebalance:
+  frequency: weekly           # (daily | weekly | monthly)
+  drift_band: 0.25            # rebalancuj, když se váha liší >25 % od cíle
+  min_trade_value: 100        # neřeš obchody menší než 100 (měna podle brokera)
+  min_trade_pct: 0.005        # nebo menší než 0.5 % portfolia
+
+signals:
+  # Vstupy založené na „GURU-mix“ + technice
+  buy:
+    min_gm20: 13                # <= Tohle je ten prah pro BUY z jedné škály 1–20
+    require_close_above_sma50: true
+    rsi_max: 70
+    distance_52w_high_max: 0.15 # nejvýš 15 % pod 52W high
+    cooldown_days: 3            # nekupuj stejný ticker dřív než za 3 dny
+    dip_buy_levels: [-0.05, -0.10, -0.15]  # „nákupy na dipu“ oproti cost_basis
+
+  trim:
+    gm20_max: 5                 # trimuj, pokud GURU-mix 1–20 klesne <= 5
+    rsi_min: 80                 # nebo RSI hodně přepálené
+    near_52w_high_and_rsi_gt: [0.98, 75]  # u 98 % 52W high a RSI>75 zvaž trim
+
+  sell:
+    close_below_sma50_days: 5   # prodej po 5 dnech pod SMA50 (ochrana kapitálu)
+    stop_loss_pct: 0.20         # nouzové pravidlo: -20 % od cost_basis
+
+filters:
+  earnings_blackout_days: 1     # nekupuj X dnů okolo výsledků
+  skip_tickers: []              # seznam tickerů, které (dočasně) ignorovat

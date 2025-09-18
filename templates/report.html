@@ -38,5 +38,43 @@
 </tr>
 {% endfor %}
 </tbody></table>
+</table>
+
+<!-- NOVÉ BLOKY – vlož sem -->
+<h2>Obchodní plán</h2>
+<table class="tbl">
+  <thead><tr><th>Ticker</th><th>Akce</th><th>Ks</th><th>Poznámka</th></tr></thead>
+  <tbody>
+  {% for o in plan %}
+    <tr>
+      <td>{{ o.ticker }}</td>
+      <td>{{ o.action }}</td>
+      <td style="text-align:right">{{ o.qty }}</td>
+      <td>{{ o.note }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Cílové váhy</h2>
+<table class="tbl">
+  <thead><tr><th>Ticker</th><th>Cílová váha</th><th>Cílová hodnota</th><th>Cílové ks</th></tr></thead>
+  <tbody>
+  {% for t in targets %}
+    <tr>
+      <td>{{ t.ticker }}</td>
+      <td style="text-align:right">{{ (t.target_w*100) | round(2) }}%</td>
+      <td style="text-align:right">{{ t.target_val | round(2) }}</td>
+      <td style="text-align:right">{{ t.target_shares }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<!-- KONEC NOVÝCH BLOKŮ -->
+
+<p style="margin-top:12px;color:#666">Pozn.: Data z Yahoo Finance (yfinance); …</p>
+</body>
+</html>
+
 <p style="margin-top:12px;color:#666">Pozn.: Data z Yahoo Finance (yfinance); chybějící fundamenty snižují váhu a víc rozhoduje technika.</p>
 </body></html>

@@ -1,6 +1,4 @@
-
-
-ticker,shares,cost_basis
+ticker, shares, cost_basis
 GOOGL, 0.384, 179.31
 ABEA.DE, 2.0, 151.66
 MU, 0.8, 92.22

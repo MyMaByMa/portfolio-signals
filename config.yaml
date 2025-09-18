@@ -121,8 +121,8 @@ allocation:
   # jak cílově rozložit portfolio
   mode: equal_weight        # (equal_weight | volatility | custom)
   target_weight: 0.05       # 5 % na jednu pozici (cílově)
-  max_weight: 0.12          # strop pro jednu pozici (12 %)
-  min_weight: 0.01          # minimální smysluplná velikost (1 %)
+  max_pos_weight: 0.12          # strop pro jednu pozici (12 %)
+  min_pos_weight: 0.01          # minimální smysluplná velikost (1 %)
   max_positions: 30         # max počet držených titulů
   cash_buffer: 0.10         # 10 % držet v hotovosti (rezerva na dipy)
 
@@ -180,6 +180,7 @@ risk:
     - { gain_pct: 0.15, trim_pct: 0.15 }
     - { gain_pct: 0.25, trim_pct: 0.10 }
     - { gain_pct: 0.40, trim_pct: 0.10 }
+capital_total: 25000        # kolik peněz chceš plánem rozdělovat
 
 rebalance:
   frequency: weekly           # (daily | weekly | monthly)
@@ -209,3 +210,6 @@ signals:
 filters:
   earnings_blackout_days: 1     # nekupuj X dnů okolo výsledků
   skip_tickers: []              # seznam tickerů, které (dočasně) ignorovat
+
+execution:
+  lot_size: 1                 # velikost lotu (u US akcií 1; u jiných uprav)

@@ -17,6 +17,62 @@ def fetch_history(tickers, period="400d", interval="1d"):
     data = yf.download(tickers, period=period, interval=interval, auto_adjust=False, group_by="ticker", threads=True, progress=False)
     return data
 
+def read_positions(path="positions.csv"):
+    """
+    Načte reálné pozice z CSV.
+    Podporuje oddělovače , ; \t, ignoruje mezery za oddělovačem
+    a převádí desetinné čárky na tečky.
+    Vrací DataFrame: ticker(str), shares(float), cost_basis(float).
+    """
+    import csv, os
+    if not os.path.exists(path):
+        return pd.DataFrame(columns=["ticker", "shares", "cost_basis"])
+
+    # rozpoznání oddělovače
+    with open(path, "r", encoding="utf-8") as f:
+        sample = f.read(2048)
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+        sep = dialect.delimiter
+    except Exception:
+        sep = ","
+
+    # načtení + ignorování mezer za oddělovačem
+    df = pd.read_csv(path, sep=sep, skipinitialspace=True)
+
+    # tolerantní mapování názvů sloupců
+    cols = {c.strip().lower(): c for c in df.columns}
+    def col(*names, default=None):
+        for n in names:
+            if n in cols:
+                return cols[n]
+        return default
+
+    col_ticker = col("ticker", default=(df.columns[0] if len(df.columns) >= 1 else None))
+    col_shares = col("shares", "quantity", "qty", default=(df.columns[1] if len(df.columns) >= 2 else None))
+    col_cost   = col("cost_basis", "avg_cost", "avgprice", "avg_price",
+                     default=(df.columns[2] if len(df.columns) >= 3 else None))
+
+    out = pd.DataFrame({
+        "ticker": df[col_ticker].astype(str).str.strip() if col_ticker else "",
+        "shares": df[col_shares] if col_shares else 0,
+        "cost_basis": df[col_cost] if col_cost else 0,
+    })
+
+    # převod „českých“ čárek na tečky + odstranění mezer
+    out["shares"] = (out["shares"].astype(str)
+                                  .str.replace(" ", "", regex=False)
+                                  .str.replace(",", ".", regex=False))
+    out["cost_basis"] = (out["cost_basis"].astype(str)
+                                        .str.replace(" ", "", regex=False)
+                                        .str.replace(",", ".", regex=False))
+
+    out["shares"] = pd.to_numeric(out["shares"], errors="coerce").fillna(0.0)
+    out["cost_basis"] = pd.to_numeric(out["cost_basis"], errors="coerce").fillna(0.0)
+    out["ticker"] = out["ticker"].str.strip()
+    out = out[out["ticker"] != ""]
+    return out
+
 def compute_indicators(df):  # df: MultiIndex columns (ticker, field)
     rows = []
     for tkr in sorted(set(k for k,_ in df.columns)):
@@ -141,6 +197,7 @@ def load_template():
 
 def main():
     cfg = load_config()
+  
     universe = cfg["universe"]
     tickers = sorted(set(universe.get("portfolio", []) + universe.get("watchlist", [])))
     if not tickers:

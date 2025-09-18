@@ -20,6 +20,7 @@ def fetch_history(tickers, period="400d", interval="1d"):
 import csv
 
 def read_positions(path="positions.csv"):
+    import csv
     rows = []
     with open(path, "r", encoding="utf-8", newline="") as f:
         r = csv.DictReader(f, skipinitialspace=True)
@@ -27,21 +28,21 @@ def read_positions(path="positions.csv"):
             if not row or not row.get("ticker"):
                 continue
             t = row["ticker"].strip()
-            # povolíme i desetinné čárky
-            sh = str(row.get("shares", "0")).replace(",", ".")
-            cb = str(row.get("cost_basis", "0")).replace(",", ".")
+            # povolíme i „české“ desetinné čárky a odmazání mezer
+            sh = str(row.get("shares", "0")).replace(" ", "")
+            cb = str(row.get("cost_basis", "0")).replace(" ", "")
             try:
-                shf = float(sh)
+                shf = float(sh.replace(",", "."))
             except Exception:
                 shf = 0.0
             try:
-                cbf = float(cb)
+                cbf = float(cb.replace(",", "."))
             except Exception:
                 cbf = 0.0
             rows.append({"ticker": t, "shares": shf, "cost_basis": cbf})
     return rows
 
- def compute_indicators(df):  # df: MultiIndex columns (ticker, field)
+def compute_indicators(df):  # df: MultiIndex columns (ticker, field)
     rows = []
     for tkr in sorted(set(k for k,_ in df.columns)):
         try:

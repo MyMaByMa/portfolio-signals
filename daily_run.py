@@ -189,6 +189,59 @@ def guru_mix_scores(tech_row, fund_row, weights):
     for k,v in comp.items():
         total += v * (weights.get(k,0)/100.0)
     return clamp(total, 0, 100), comp
+def portfolio_value(positions, prices):
+    pv = 0.0
+    for p in positions:
+        price = prices.get(p["ticker"])
+        if price:
+            pv += float(p["shares"]) * float(price)
+    return pv
+
+def compute_targets_and_plan(cfg, positions, metrics_df, prices):
+    """
+    metrics_df: DataFrame s alespoň ['ticker','guru_mix','signal']
+    positions : list(dict) z positions.csv  (ticker, shares, cost_basis)
+    prices    : dict {ticker: last_close}
+    """
+    # aktivní tickery + jejich skóre
+    active = metrics_df.set_index("ticker")
+
+    risk  = cfg.get("risk", {})
+    alloc = cfg.get("allocation", {})
+    max_pos   = float(risk.get("max_pos", 0.08))     # max váha 8 %/pozice
+    min_trade = float(alloc.get("min_trade", 100.0)) # min. notional na obchod (CZK/EUR/USD)
+
+    # cílové váhy z guru_mix (ořez na max_pos a renormalizace)
+    gm = active["guru_mix"].clip(lower=0.0)
+    tot = gm.sum()
+    if tot <= 0:
+        target_w = pd.Series(0.0, index=active.index)
+    else:
+        target_w = (gm / tot).clip(upper=max_pos)
+        target_w = target_w / target_w.sum()
+
+    targets = pd.DataFrame({"ticker": active.index, "target_w": target_w.values})
+
+    # současné váhy portfolia
+    port_val = portfolio_value(positions, prices)
+    cur = pd.DataFrame([{
+        "ticker": p["ticker"],
+        "shares": float(p["shares"]),
+        "cur_w": (float(p["shares"]) * float(prices.get(p["ticker"], 0.0))) / port_val if port_val > 0 else 0.0
+    } for p in positions]).set_index("ticker")
+
+    merged = targets.set_index("ticker").join(cur, how="left").fillna(0.0)
+    merged["price"] = [prices.get(t, np.nan) for t in merged.index]
+    merged["diff_w"] = merged["target_w"] - merged["cur_w"]
+    merged["trade_shares"] = (merged["diff_w"] * port_val / merged["price"]).round(3)
+    merged["notional"] = (merged["trade_shares"] * merged["price"]).abs()
+    merged["action"] = np.where(merged["trade_shares"] > 0, "BUY",
+                         np.where(merged["trade_shares"] < 0, "TRIM", "HOLD"))
+    # odfiltrovat drobky
+    plan = merged[merged["notional"] >= min_trade].reset_index()
+
+    return targets.reset_index(), plan
+
 
 def load_template():
     tmpl_path = os.path.join("templates", "report.html")
@@ -236,11 +289,32 @@ def main():
     csv_path = os.path.join("report", "report.csv")
     out.to_csv(csv_path, index=False)
 
+  # --- výpočet cílových vah a obchodního plánu ---
+positions = read_positions("positions.csv")               # už máš z KROKU 1
+prices    = dict(zip(tech.index, tech["close"]))          # poslední close z dat
+
+targets, plan = compute_targets_and_plan(
+    cfg,
+    positions,
+    out.loc[:, ["ticker", "guru_mix", "signal"]],
+    prices
+)
+
+# uložím i CSV s plánem a cíli
+targets.to_csv(os.path.join("report", "targets.csv"), index=False)
+plan.to_csv(os.path.join("report", "trade_plan.csv"), index=False)
+
+  
     # Render HTML
     tmpl = load_template()
-    html = tmpl.render(updated=dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
-                       rows=out.to_dict("records"))
-    with open(os.path.join("report", "report.html"), "w", encoding="utf-8") as f:
+
+    html = tmpl.render(
+    updated=dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+    rows=out.to_dict("records"),
+    plan=plan.to_dict("records"),
+    targets=targets.to_dict("records")
+
+  with open(os.path.join("report", "report.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
     print("Done. Wrote report/report.csv and report/report.html")

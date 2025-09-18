@@ -285,39 +285,25 @@ def main():
         })
 
     out = pd.DataFrame(rows).sort_values(["bucket", "signal", "guru_mix"], ascending=[True, True, False])
+        # uložím výstupy
     os.makedirs("report", exist_ok=True)
-    csv_path = os.path.join("report", "report.csv")
-    out.to_csv(csv_path, index=False)
+    out.to_csv(os.path.join("report", "report.csv"), index=False)
+    targets.to_csv(os.path.join("report", "targets.csv"), index=False)
+    plan.to_csv(os.path.join("report", "trade_plan.csv"), index=False)
 
-  # --- výpočet cílových vah a obchodního plánu ---
-positions = read_positions("positions.csv")               # už máš z KROKU 1
-prices    = dict(zip(tech.index, tech["close"]))          # poslední close z dat
-
-targets, plan = compute_targets_and_plan(
-    cfg,
-    positions,
-    out.loc[:, ["ticker", "guru_mix", "signal"]],
-    prices
-)
-
-# uložím i CSV s plánem a cíli
-targets.to_csv(os.path.join("report", "targets.csv"), index=False)
-plan.to_csv(os.path.join("report", "trade_plan.csv"), index=False)
-
-  
-    # Render HTML
+    # Render HTML (tohle musí být stále uvnitř def main():, tedy s jedním odsazením)
     tmpl = load_template()
-
     html = tmpl.render(
-    updated=dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
-    rows=out.to_dict("records"),
-    plan=plan.to_dict("records"),
-    targets=targets.to_dict("records")
-
-  with open(os.path.join("report", "report.html"), "w", encoding="utf-8") as f:
+        updated=dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        rows=out.to_dict("records"),
+        plan=plan.to_dict("records"),
+        targets=targets.to_dict("records"),
+    )
+    with open(os.path.join("report", "report.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
     print("Done. Wrote report/report.csv and report/report.html")
 
 if __name__ == "__main__":
     main()
+

@@ -17,63 +17,31 @@ def fetch_history(tickers, period="400d", interval="1d"):
     data = yf.download(tickers, period=period, interval=interval, auto_adjust=False, group_by="ticker", threads=True, progress=False)
     return data
 
+import csv
+
 def read_positions(path="positions.csv"):
-    """
-    Načte reálné pozice z CSV.
-    Podporuje oddělovače , ; \t, ignoruje mezery za oddělovačem
-    a převádí desetinné čárky na tečky.
-    Vrací DataFrame: ticker(str), shares(float), cost_basis(float).
-    """
-    import csv, os
-    if not os.path.exists(path):
-        return pd.DataFrame(columns=["ticker", "shares", "cost_basis"])
+    rows = []
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        r = csv.DictReader(f, skipinitialspace=True)
+        for row in r:
+            if not row or not row.get("ticker"):
+                continue
+            t = row["ticker"].strip()
+            # povolíme i desetinné čárky
+            sh = str(row.get("shares", "0")).replace(",", ".")
+            cb = str(row.get("cost_basis", "0")).replace(",", ".")
+            try:
+                shf = float(sh)
+            except Exception:
+                shf = 0.0
+            try:
+                cbf = float(cb)
+            except Exception:
+                cbf = 0.0
+            rows.append({"ticker": t, "shares": shf, "cost_basis": cbf})
+    return rows
 
-    # rozpoznání oddělovače
-    with open(path, "r", encoding="utf-8") as f:
-        sample = f.read(2048)
-    try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
-        sep = dialect.delimiter
-    except Exception:
-        sep = ","
-
-    # načtení + ignorování mezer za oddělovačem
-    df = pd.read_csv(path, sep=sep, skipinitialspace=True)
-
-    # tolerantní mapování názvů sloupců
-    cols = {c.strip().lower(): c for c in df.columns}
-    def col(*names, default=None):
-        for n in names:
-            if n in cols:
-                return cols[n]
-        return default
-
-    col_ticker = col("ticker", default=(df.columns[0] if len(df.columns) >= 1 else None))
-    col_shares = col("shares", "quantity", "qty", default=(df.columns[1] if len(df.columns) >= 2 else None))
-    col_cost   = col("cost_basis", "avg_cost", "avgprice", "avg_price",
-                     default=(df.columns[2] if len(df.columns) >= 3 else None))
-
-    out = pd.DataFrame({
-        "ticker": df[col_ticker].astype(str).str.strip() if col_ticker else "",
-        "shares": df[col_shares] if col_shares else 0,
-        "cost_basis": df[col_cost] if col_cost else 0,
-    })
-
-    # převod „českých“ čárek na tečky + odstranění mezer
-    out["shares"] = (out["shares"].astype(str)
-                                  .str.replace(" ", "", regex=False)
-                                  .str.replace(",", ".", regex=False))
-    out["cost_basis"] = (out["cost_basis"].astype(str)
-                                        .str.replace(" ", "", regex=False)
-                                        .str.replace(",", ".", regex=False))
-
-    out["shares"] = pd.to_numeric(out["shares"], errors="coerce").fillna(0.0)
-    out["cost_basis"] = pd.to_numeric(out["cost_basis"], errors="coerce").fillna(0.0)
-    out["ticker"] = out["ticker"].str.strip()
-    out = out[out["ticker"] != ""]
-    return out
-
-def compute_indicators(df):  # df: MultiIndex columns (ticker, field)
+ def compute_indicators(df):  # df: MultiIndex columns (ticker, field)
     rows = []
     for tkr in sorted(set(k for k,_ in df.columns)):
         try:

@@ -9,7 +9,7 @@ universe:
     - BRZE
     - VALE
     - PBR
-    - PBRA
+    - PBR-A
     - RHM.DE
     - HAG.DE
     - TKA.DE
@@ -18,7 +18,7 @@ universe:
     - LDO.MI
     - KOMB.PR
     - CZG.PR
-    - CEZ1.CZ
+    - CEZ.PR
     - ASML
     - NVO
     - ACLS

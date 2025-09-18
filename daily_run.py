@@ -275,10 +275,20 @@ def main():
         targets = pd.DataFrame(columns=["ticker", "target_w", "target_val", "target_shares"])
         plan = pd.DataFrame(columns=["ticker", "action", "qty", "note"])
     else:
-        capital = float(cfg["risk"]["capital_total"])
-        max_w = float(cfg["allocation"]["max_pos_weight"])
-        min_w = float(cfg["allocation"]["min_pos_weight"])
-        lot   = int(cfg["allocation"].get("lot_size", 1))
+     
+      # --- bezpečné načtení z configu (risk vs Risk) ---
+risk_cfg  = cfg.get("risk") or cfg.get("Risk") or {}
+alloc_cfg = cfg.get("allocation") or {}
+exec_cfg  = cfg.get("execution") or {}
+
+cap_val = risk_cfg.get("capital_total")
+if cap_val is None:
+    raise RuntimeError("config.yaml: chybí risk.capital_total")
+
+capital = float(cap_val)
+max_w   = float(alloc_cfg.get("max_pos_weight", 0.12))
+min_w   = float(alloc_cfg.get("min_pos_weight", 0.01))
+lot     = int(exec_cfg.get("lot_size", 1))
 
         # surové váhy z gm20
         w_raw = buy["gm20"]

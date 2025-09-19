@@ -277,6 +277,11 @@ def main():
   if buy.empty:
     targets = pd.DataFrame(columns=["ticker", "target_w", "target_val", "target_shares"])
     plan    = pd.DataFrame(columns=["ticker", "action", "qty", "note"])
+side = pd.Categorical(plan["action"], categories=["BUY", "SELL"], ordered=True)
+plan = (plan.assign(side=side)
+             .sort_values(by=["side", "qty"], ascending=[True, False])
+             .drop(columns="side")
+             .reset_index(drop=True))
   else:
     # — bezpečné načtení z configu (risk vs Risk) —
     risk_cfg  = cfg.get("risk") or cfg.get("Risk") or {}

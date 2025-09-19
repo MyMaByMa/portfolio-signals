@@ -270,70 +270,75 @@ def main():
   # jen BUY tickery
   buy = out[out["signal"] == "BUY"].set_index("ticker").copy()
 
-  # načti aktuální pozice
-  pos_list = read_positions("positions.csv")
-  cur_shares = {str(p["ticker"]).strip(): float(p["shares"]) for p in pos_list}
+ # --- build targets & trade plan ------------------------------------------------
 
-  if buy.empty:
-    targets = pd.DataFrame(columns=["ticker", "target_w", "target_val", "target_shares"])
-    plan    = pd.DataFrame(columns=["ticker", "action", "qty", "note"])
-side = pd.Categorical(plan["action"], categories=["BUY", "SELL"], ordered=True)
-plan = (plan.assign(side=side)
-             .sort_values(by=["side", "qty"], ascending=[True, False])
-             .drop(columns="side")
-             .reset_index(drop=True))
+# načti aktuální pozice (ticker -> shares)
+pos_list  = read_positions("positions.csv")           # [{ticker, shares, cost_basis}, ...]
+cur_shares = {p["ticker"]: float(p["shares"]) for p in pos_list}
+
+# BUY kandidáti už máš v `buy` (viz dříve: buy = df[df["signal"] == "BUY"].copy())
+
+if buy.empty:
+  targets = pd.DataFrame(columns=["ticker", "target_w", "target_val", "target_shares"])
+  plan    = pd.DataFrame(columns=["ticker", "action", "qty", "note"])
+else:
+  # --- bezpečné načtení z configu (risk / allocation / execution) ---
+  risk_cfg  = cfg.get("risk") or cfg.get("Risk") or {}
+  alloc_cfg = cfg.get("allocation") or {}
+  exec_cfg  = cfg.get("execution") or {}
+
+  cap_val = risk_cfg.get("capital_total")
+  if cap_val is None:
+    raise RuntimeError("config.yaml: chybí risk.capital_total")
+  capital = float(cap_val)
+
+  max_w = float(alloc_cfg.get("max_pos_weight", 0.12))
+  min_w = float(alloc_cfg.get("min_pos_weight", 0.01))
+  lot   = int(exec_cfg.get("lot_size", 1))
+
+  # surové váhy (použijeme tvoje g20)
+  w_raw = buy["g20"]
+  w = w_raw / w_raw.sum()
+
+  # omez minimum/maximum
+  w = w.clip(lower=min_w, upper=max_w)
+
+  # renormalizace aby suma <= 1.0
+  s = w.sum()
+  if s > 1.0:
+    w = w / s
+
+  # cílová hodnota a počty kusů
+  tgt_val = (capital * w).rename("target_val")
+  tgt_sh  = (tgt_val / buy["close"])
+  if lot > 1:
+    tgt_sh = (tgt_sh / lot).round().astype(int) * lot
   else:
-    # — bezpečné načtení z configu (risk vs Risk) —
-    risk_cfg  = cfg.get("risk") or cfg.get("Risk") or {}
-    alloc_cfg = cfg.get("allocation") or {}
-    exec_cfg  = cfg.get("execution") or {}
+    tgt_sh = tgt_sh.round().astype(int)
 
-    cap_val = risk_cfg.get("capital_total")
-    if cap_val is None:
-      raise RuntimeError("config.yaml: chybí risk.capital_total")
+  targets = pd.DataFrame({
+    "ticker": w.index,
+    "target_w": (w.values * 100).round(2),   # v %
+    "target_val": tgt_val.values.round(2),
+    "target_shares": tgt_sh.values
+  })
 
-    capital = float(cap_val)
-    max_w   = float(alloc_cfg.get("max_pos_weight", 0.12))
-    min_w   = float(alloc_cfg.get("min_pos_weight", 0.01))
-    lot     = int(exec_cfg.get("lot_size", 1))
+  # obchodní plán = rozdíl proti aktuálním pozicím
+  orders = []
+  for tkr, t_sh in tgt_sh.items():
+    have = int(round(cur_shares.get(tkr, 0)))
+    d = int(t_sh) - have
+    if d > 0:
+      orders.append([tkr, "BUY",  d, f"to reach {int(t_sh)}"])
+    elif d < 0:
+      orders.append([tkr, "SELL", -d, f"to reduce to {int(t_sh)}"])
 
-    # surové váhy z gm20
-    w_raw = buy["gm20"]
-    w = w_raw / w_raw.sum()
+  plan = pd.DataFrame(orders, columns=["ticker", "action", "qty", "note"])
 
-    # omez min/max
-    w = w.clip(lower=min_w, upper=max_w)
-
-    # renormalizace aby suma <= 1.0
-    s = w.sum()
-    if s > 1.0:
-      w = w / s
-
-    # cílová hodnota a počty kusů
-    tgt_val = (capital * w).rename("target_val")
-    tgt_sh  = (tgt_val / buy["close"])
-    if lot > 1:
-      tgt_sh = (tgt_sh / lot).round() * lot
-    else:
-      tgt_sh = tgt_sh.round()
-
-    targets = pd.DataFrame({
-      "ticker": buy.index,
-      "target_w": w.values.round(4),
-      "target_val": tgt_val.values.round(2),
-      "target_shares": tgt_sh.astype(int).values
-    })
-
-    # plán = rozdíl proti aktuálním pozicím
-    orders = []
-    for tkr, t_sh in tgt_sh.items():
-      have = int(round(cur_shares.get(tkr, 0)))
-      d = int(t_sh) - have
-      if d > 0:
-        orders.append((tkr, "BUY",  d, f"to reach {int(t_sh)}"))
-      elif d < 0:
-        orders.append((tkr, "SELL", -d, f"to reduce to {int(t_sh)}"))
-    plan = pd.DataFrame(orders, columns=["ticker", "action", "qty", "note"])
+  # seřadit plán podle počtu kusů (Ks)
+  if not plan.empty:
+    plan["qty"] = plan["qty"].astype(int)
+    plan = plan.sort_values(by="qty", ascending=False).reset_index(drop=True)
 
   # --- uložit i CSV s plánem a cíli
   targets.to_csv(os.path.join("report", "targets.csv"), index=False)

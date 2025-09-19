@@ -12,13 +12,14 @@
 <h1>Denní signály – Guru-mix</h1>
 <p>Aktualizováno: {{ updated }}</p>
 <table><thead><tr>
-<th>Ticker</th><th>Koš</th><th>Signál</th><th>Guru-mix</th>
+ <th>Název</th><th>Ticker</th><th>Koš</th><th>Signál</th><th>Guru-mix</th>
 <th>Buffett</th><th>Graham</th><th>Greenblatt</th><th>Raschke</th>
 <th>Lynch</th><th>Icahn</th><th>Ackman</th>
 <th>Cena</th><th>RSI</th><th>% pod 52W high</th><th>Poznámka</th><th>Blackout</th>
 </tr></thead><tbody>
 {% for r in rows %}
 <tr class="{{ r['signal'] }}">
+<td>{{ r['name'] }}</td>
 <td><b>{{ r['ticker'] }}</b></td>
 <td><span class="tag tag-bucket">{{ r['bucket'] }}</span></td>
 <td><b>{{ r['signal'] }}</b></td>

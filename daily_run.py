@@ -86,32 +86,39 @@ def fetch_info(ticker):
   
 def compute_fundamentals_row(ticker):
   info = fetch_info(ticker)
+
   mc = safe(info.get("marketCap"), None)
   fcf = safe(info.get("freeCashflow"), None)
   ocf = safe(info.get("operatingCashflow"), None)
   totrev = safe(info.get("totalRevenue"), None)
   ev = safe(info.get("enterpriseValue"), None)
   ebitda_mult = safe(info.get("enterpriseToEbitda"), None)
+
   # proxies
-  pfcf = (mc / fcf) if mc and fcf and fcf>0 else None
-  fcf_margin = (fcf / totrev) if fcf and totrev and totrev>0 else None
-  ev_ebitda = ebitda_mult if ebitda_mult and ebitda_mult>0 else None
+  pfcf = (mc / fcf) if mc and fcf and fcf > 0 else None
+  fcf_margin = (fcf / totrev) if fcf and totrev and totrev > 0 else None
+  ev_ebitda = ebitda_mult if ebitda_mult and ebitda_mult > 0 else None
   ev_ebit = None
   shareholder_yield = None
-  fcf_conv = (fcf / ocf) if fcf and ocf and ocf>0 else None
+  fcf_conv = (fcf / ocf) if fcf and ocf and ocf > 0 else None
   eps_growth = safe(info.get("earningsGrowth"), None)
   rev_growth = safe(info.get("revenueGrowth"), None)
-name = info.get("shortName") or info.get("longName") or ticker
 
-return {
-  "info": info,
-  "name": name,                    # ← PŘIDÁNO
-  "pfcf": pfcf, "fcf_margin": fcf_margin,
-  "ev_ebitda": ev_ebitda, "ev_ebit": ev_ebit,
-  "shareholder_yield": shareholder_yield,
-  "fcf_conv": fcf_conv, "eps_growth": eps_growth, "rev_growth": rev_growth
-}
+  # pro HTML/report název firmy
+  name = info.get("shortName") or info.get("longName") or ticker
 
+  return {
+    "info": info,
+    "name": name,
+    "pfcf": pfcf,
+    "fcf_margin": fcf_margin,
+    "ev_ebitda": ev_ebitda,
+    "ev_ebit": ev_ebit,
+    "shareholder_yield": shareholder_yield,
+    "fcf_conv": fcf_conv,
+    "eps_growth": eps_growth,
+    "rev_growth": rev_growth,
+  }
 def earnings_blackout(ticker, days=1):
   try:
     t = yf.Ticker(ticker)

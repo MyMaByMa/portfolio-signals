@@ -64,54 +64,53 @@ def compute_indicators(df):  # df: MultiIndex columns (ticker, field)
   return pd.DataFrame(rows)
 
 def fetch_info(ticker):
-  t = yf.Ticker(ticker)
-  info = {}
-  try:
-    info = t.get_info() or {}
-  except Exception:
+    t = yf.Ticker(ticker)
+    info = {}
     try:
-      info = t.fast_info or {}
+        info = t.get_info() or {}
     except Exception:
-      info = {}
-
-  keys = [
-    "shortName","longName",
-    "marketCap","enterpriseValue","trailingPE","forwardPE","enterpriseToEbitda",
-    "returnOnEquity","returnOnCapital","freeCashflow","operatingCashflow",
-    "totalRevenue","grossMargins","revenueGrowth","earningsGrowth","debtToEquity",
-    "sharesOutstanding"
-  ]
-  out = {k: info.get(k) for k in keys}
-  return out
-
+        try:
+            info = t.fast_info or {}
+        except Exception:
+            info = {}
+    # Basics we care about
+    keys = [
+        "shortName", "longName",                    # ← PŘIDÁNO
+        "marketCap","enterpriseValue","trailingPE","forwardPE","enterpriseToEbitda",
+        "returnOnEquity","returnOnCapital","freeCashflow","operatingCashflow",
+        "totalRevenue","grossMargins","revenueGrowth","earningsGrowth","debtToEquity",
+        "sharesOutstanding"
+    ]
+    out = {k: info.get(k) for k in keys}
+    return out
+  
 def compute_fundamentals_row(ticker):
   info = fetch_info(ticker)
-  mc   = safe(info.get("marketCap"), None)
-  fcf  = safe(info.get("freeCashflow"), None)
-  ocf  = safe(info.get("operatingCashflow"), None)
-  totrev = safe(info.get("totalRevenue"), None)
-  ebitda_mult = safe(info.get("enterpriseToEbitda"), None)
+    mc = safe(info.get("marketCap"), None)
+    fcf = safe(info.get("freeCashflow"), None)
+    ocf = safe(info.get("operatingCashflow"), None)
+    totrev = safe(info.get("totalRevenue"), None)
+    ev = safe(info.get("enterpriseValue"), None)
+    ebitda_mult = safe(info.get("enterpriseToEbitda"), None)
+    # proxies
+    pfcf = (mc / fcf) if mc and fcf and fcf>0 else None
+    fcf_margin = (fcf / totrev) if fcf and totrev and totrev>0 else None
+    ev_ebitda = ebitda_mult if ebitda_mult and ebitda_mult>0 else None
+    ev_ebit = None
+    shareholder_yield = None
+    fcf_conv = (fcf / ocf) if fcf and ocf and ocf>0 else None
+    eps_growth = safe(info.get("earningsGrowth"), None)
+    rev_growth = safe(info.get("revenueGrowth"), None)
+name = info.get("shortName") or info.get("longName") or ticker
 
-  pfcf = (mc / fcf) if mc and fcf and fcf > 0 else None
-  fcf_margin = (fcf / totrev) if fcf and totrev and totrev > 0 else None
-  ev_ebitda = ebitda_mult if ebitda_mult and ebitda_mult > 0 else None
-  ev_ebit = None
-  shareholder_yield = None
-  fcf_conv = (fcf / ocf) if fcf and ocf and ocf > 0 else None
-  eps_growth = safe(info.get("earningsGrowth"), None)
-  rev_growth = safe(info.get("revenueGrowth"), None)
-
-  return {
+return {
     "info": info,
-    "pfcf": pfcf,
-    "fcf_margin": fcf_margin,
-    "ev_ebitda": ev_ebitda,
-    "ev_ebit": ev_ebit,
+    "name": name,                    # ← PŘIDÁNO
+    "pfcf": pfcf, "fcf_margin": fcf_margin,
+    "ev_ebitda": ev_ebitda, "ev_ebit": ev_ebit,
     "shareholder_yield": shareholder_yield,
-    "fcf_conv": fcf_conv,
-    "eps_growth": eps_growth,
-    "rev_growth": rev_growth
-  }
+    "fcf_conv": fcf_conv, "eps_growth": eps_growth, "rev_growth": rev_growth
+}
 
 def earnings_blackout(ticker, days=1):
   try:
@@ -221,33 +220,29 @@ def main():
   rows = []
   for tkr, row in tech.iterrows():
     fund = compute_fundamentals_row(tkr)
+    name = fund.get("name") or tkr                    # ← jméno z fundamentů
     gm, comp = guru_mix_scores(row, fund, cfg.get("weights", {}))
-    gm20 = clamp(gm / 5.0, 0, 20)
-    e_blk = earnings_blackout(tkr, cfg.get("filters", {}).get("earnings_blackout_days", 1))
+    e_blk = earnings_blackout(tkr, cfg.get("watchlist_rules", {}).get("earnings_blackout_days",1))
 
     signal = classify_signal(dict(
-      close=row["close"], sma50=row["sma50"], rsi=row["rsi"],
-      dist_52w_hi=row["dist_52w_hi"], near_52w_high=row["near_52w_high"],
-      gm20=gm20
+        close=row["close"], sma50=row["sma50"], rsi=row["rsi"],
+        dist_52w_hi=row["dist_52w_hi"], near_52w_high=row["near_52w_high"]
     ), earnings_window=e_blk)
 
-    why = f"Close>{'SMA50' if row['close']>row['sma50'] else 'SMA50?'}; RSI={row['rsi']:.1f}; {row['dist_52w_hi']*100:.1f}% pod 52W high"
+    why = ...
     bucket = "portfolio" if tkr in universe.get("portfolio", []) else "watchlist"
-    info = fund["info"]
-    name = info.get("shortName") or info.get("longName") or tkr
 
     rows.append({
-      "name": name,
-      "ticker": tkr,
-      "bucket": bucket,
-      "signal": signal,
-      "guru_mix": gm,
-      "buffett": comp["buffett"], "graham": comp["graham"], "greenblatt": comp["greenblatt"],
-      "raschke": comp["raschke"], "lynch": comp["lynch"], "icahn": comp["icahn"], "ackman": comp["ackman"],
-      "close": row["close"], "sma50": row["sma50"], "sma200": row["sma200"], "rsi": row["rsi"],
-      "dist_hi_pct": row["dist_52w_hi"] * 100.0, "near_52w_high": row["near_52w_high"],
-      "mom_1m": row["mom_1m"], "mom_3m": row["mom_3m"],
-      "why": why, "earnings_blackout": e_blk
+        "name": name,                                   # ← PŘIDÁNO (název firmy)
+        "ticker": tkr,
+        "bucket": bucket, "signal": signal, "guru_mix": gm,
+        "buffett": comp["buffett"], "graham": comp["graham"], "greenblatt": comp["greenblatt"],
+        "raschke": comp["raschke"], "lynch": comp["lynch"], "icahn": comp["icahn"], "ackman": comp["ackman"],
+        "close": row["close"], "sma50": row["sma50"], "sma200": row["sma200"], "rsi": row["rsi"],
+        "dist_hi_pct": row["dist_52w_hi"]*100.0, "near_52w_high": row["near_52w_high"],
+        "mom_1m": row["mom_1m"] if row["mom_1m"] is not None else np.nan,
+        "mom_3m": row["mom_3m"] if row["mom_3m"] is not None else np.nan,
+        "why": why, "earnings_blackout": e_blk
     })
 
   out = pd.DataFrame(rows).sort_values(["bucket", "signal", "guru_mix"], ascending=[True, True, False])

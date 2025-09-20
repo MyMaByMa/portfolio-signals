@@ -106,7 +106,9 @@ watchlist_rules:
   earnings_blackout_days: 1
   confirm_days: 3
 
-weights:
+# ---------- GURU MIX ----------
+# váhy jednotlivých přístupů; používá se vážený průměr -> jeden sloupec "Guru-mix"
+guru_mix_weights:
   buffett: 25
   graham: 20
   greenblatt: 15
@@ -115,18 +117,56 @@ weights:
   icahn: 7.5
   ackman: 7.5
 
-# --- ALLOCATION RULES & LIMITS ---
+# Monotónní mapování Guru-mix -> signál
+# (používá ho kód: AVOID < HOLD < BUY < BUY+ < BUY++)
+signal_thresholds:
+  strong_buy: 20   # BUY++
+  buy: 12          # BUY+
+  hold: 6          # BUY
+# pokud 0 < mix < hold => HOLD, jinak AVOID
 
+# ---------- TRIM PRAVIDLA ----------
+trim_rules:
+  # A) přehřátý moment (profit-taking)
+  momentum_1:
+    rsi_min: 70
+    sma50_premium_min: 0.15   # cena alespoň 15 % nad SMA50
+    trim_fraction: 0.25
+  momentum_2:
+    rsi_min: 75
+    sma50_premium_min: 0.20
+    trim_fraction: 0.33
+
+  # B) profit lock-in
+  profit_1:
+    gain_min: 0.30            # zisk na pozici ≥ 30 %
+    rsi_min: 65
+    trim_fraction: 0.25
+  profit_2:
+    gain_min: 0.50
+    rsi_min: 70
+    trim_fraction: 0.50
+
+  # C) zhoršení kvality (mix/signál)
+  quality_drop:
+    drop_pct_min: 0.30        # pokles vs 20D průměr Guru-mixu ≥ 30 %
+    min_gain: 0.10
+    trim_fraction: 0.25
+  double_downgrade:
+    trim_fraction: 0.33       # např. BUY++ → BUY během krátké doby
+
+  # D) koncentrace/riziko
+  weight_cap:
+    max_weight: 0.10          # udrž váhu pod 10 %; nadbytek se trimuje
+
+# ---------- ALOKACE A RIZIKO ----------
 allocation:
-  # jak cílově rozložit portfolio
-  mode: equal_weight        # (equal_weight | volatility | custom)
-  target_weight: 0.05       # 5 % na jednu pozici (cílově)
-  max_pos_weight: 0.12          # strop pro jednu pozici (12 %)
-  min_pos_weight: 0.01          # minimální smysluplná velikost (1 %)
-  max_positions: 30         # max počet držených titulů
-  cash_buffer: 0.10         # 10 % držet v hotovosti (rezerva na dipy)
-
-  # sektorové stropy (aby nebyl přestřelený jeden sektor)
+  mode: equal_weight
+  target_weight: 0.05
+  max_pos_weight: 0.12
+  min_pos_weight: 0.01
+  max_positions: 30
+  cash_buffer: 0.10
   sector_caps:
     Defense: 0.35
     Tech: 0.45
@@ -138,8 +178,6 @@ allocation:
     Utilities: 0.30
     Industrials: 0.35
     Consumer: 0.35
-
-  # ruční mapování ticker -> sektor (jen co držíš/řešíš)
   sector_by_ticker:
     GOOGL: Tech
     ABEA.DE: Tech
@@ -150,7 +188,6 @@ allocation:
     IMVT: Healthcare
     FIVN: Tech
     VKTX: Healthcare
-
     RHM.DE: Defense
     HAG.DE: Defense
     SAAB-B.ST: Defense
@@ -158,7 +195,6 @@ allocation:
     CZG.PR: Defense
     BA.L: Defense
     TKA.DE: Industrials
-
     KOMB.PR: Financials
     PK: RealEstate
     VALE: Materials
@@ -172,51 +208,32 @@ allocation:
     ASML: Tech
 
 risk:
-  # jednoduché řízení rizika a výstupy
-  risk_per_trade: 0.01        # max 1 % portfolia v riziku na novou pozici (pro poziční sizing podle ATR – volitelně)
-  hard_stop_pct: 0.20         # nouzový stop přes -20 % od cost_basis (pokud se používá)
-  trailing_atr_mult: 3.0      # trailing stop 3x ATR (volitelně)
-  take_profit_ladders:        # zámky části zisku (volitelně)
+  capital_total: 25000
+  risk_per_trade: 0.01
+  hard_stop_pct: 0.20
+  trailing_atr_mult: 3.0
+  take_profit_ladders:
     - { gain_pct: 0.15, trim_pct: 0.15 }
     - { gain_pct: 0.25, trim_pct: 0.10 }
     - { gain_pct: 0.40, trim_pct: 0.10 }
-capital_total: 25000        # kolik peněz chceš plánem rozdělovat
 
 rebalance:
-  frequency: weekly           # (daily | weekly | monthly)
-  drift_band: 0.25            # rebalancuj, když se váha liší >25 % od cíle
-  min_trade_value: 100        # neřeš obchody menší než 100 (měna podle brokera)
-  min_trade_pct: 0.005        # nebo menší než 0.5 % portfolia
+  frequency: weekly
+  drift_band: 0.25
+  min_trade_value: 100
+  min_trade_pct: 0.005
 
-signals:
-  # Vstupy založené na „GURU-mix“ + technice
-  buy:
-    min_gm20: 13                # <= Tohle je ten prah pro BUY z jedné škály 1–20
-    require_close_above_sma50: true
-    rsi_max: 70
-    distance_52w_high_max: 0.15 # nejvýš 15 % pod 52W high
-    cooldown_days: 3            # nekupuj stejný ticker dřív než za 3 dny
-    dip_buy_levels: [-0.05, -0.10, -0.15]  # „nákupy na dipu“ oproti cost_basis
+# Volitelná technická „brzda“ pro exekuci vstupu (nad rámec samotného signálu z mixu)
+entry_filters:
+  require_close_above_sma50: true
+  rsi_max: 70
+  distance_52w_high_max: 0.15
+  cooldown_days: 3
+  dip_buy_levels: [-0.05, -0.10, -0.15]
 
-  trim:
-    gm20_max: 5                 # trimuj, pokud GURU-mix 1–20 klesne <= 5
-    rsi_min: 80                 # nebo RSI hodně přepálené
-    near_52w_high_and_rsi_gt: [0.98, 75]  # u 98 % 52W high a RSI>75 zvaž trim
-
-  sell:
-    close_below_sma50_days: 5   # prodej po 5 dnech pod SMA50 (ochrana kapitálu)
-    stop_loss_pct: 0.20         # nouzové pravidlo: -20 % od cost_basis
-
-filters:
-  earnings_blackout_days: 1     # nekupuj X dnů okolo výsledků
-  skip_tickers: []              # seznam tickerů, které (dočasně) ignorovat
-
-risk:
-  capital_total: 25000        # celkový kapitál pro plánování (číslo bez mezer)
-
-allocation:
-  max_pos_weight: 0.12        # max 12 % na jednu pozici
-  min_pos_weight: 0.01        # min 1 % na jednu pozici
+sell_rules:
+  close_below_sma50_days: 5
+  stop_loss_pct: 0.20
 
 execution:
-  lot_size: 1                 # velikost lotu (u US akcií 1)
+  lot_size: 1

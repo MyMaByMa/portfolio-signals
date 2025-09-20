@@ -270,6 +270,18 @@ def main():
   # jen BUY tickery
   buy = out[out["signal"] == "BUY"].set_index("ticker").copy()
 
+  # připravíme tabulku df pro alokace a kandidáty BUY
+  # (out už máš hotové výše – obsahuje sloupce jako 'ticker', 'signal', 'guru_mix', 'close', ...)
+  df = out[["ticker", "signal", "guru_mix", "close"]].copy()
+  df = df.set_index("ticker", drop=False)
+
+  # škálování 'guru_mix' do surových vah g20 (0–20)
+  df["g20"] = (df["guru_mix"] / 5.0).clip(0, 20)
+
+  # kandidáti k nákupu
+  buy = df[df["signal"] == "BUY"].copy()
+
+
  # --- build targets & trade plan ------------------------------------------------
 
 # načti aktuální pozice (ticker -> shares)

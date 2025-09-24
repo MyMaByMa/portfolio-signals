@@ -9,6 +9,28 @@ from rules import (
     score_buffett, score_graham, score_greenblatt, score_raschke,
     score_lynch, score_icahn, score_ackman, classify_signal, safe, clamp
 )
+# --- helpers: safe integer casting for share counts ---
+
+def safe_int_series(x, fill=0, clip_min=0, round_mode="round", use_nullable=True):
+    """
+    Bezpečně převede hodnoty na celá čísla (kusy):
+    - nečíselné -> NaN, +/-Inf -> NaN
+    - NaN -> 'fill'
+    - ořízne na 'clip_min'
+    - round|floor|ceil
+    - vrátí pandas nullable Int64 (nebo klasické int)
+    """
+    s = pd.to_numeric(pd.Series(x), errors="coerce")
+    s = s.replace([np.inf, -np.inf], np.nan).fillna(fill)
+    if clip_min is not None:
+        s = s.clip(lower=clip_min)
+    if round_mode == "floor":
+        s = np.floor(s)
+    elif round_mode == "ceil":
+        s = np.ceil(s)
+    else:
+        s = s.round()
+    return s.astype("Int64") if use_nullable else s.astype(int)
 
 # --------- utils ---------
 def load_config(path="config.yaml"):
@@ -331,32 +353,43 @@ def main():
         if s > 1.0:
             w = w / s
 
-        # cílové hodnoty a kusy
-        tgt_val = (capital * w).rename("target_val")
-        tgt_sh  = (tgt_val / buy["close"])
-        if lot > 1:
-            tgt_sh = (tgt_sh / lot).round().astype(int) * lot
-        else:
-            tgt_sh = tgt_sh.round().astype(int)
+       # cílové hodnoty a kusy
+tgt_val = (capital * w).rename("target_val")
 
-        targets = pd.DataFrame({
-            "ticker": w.index,
-            "target_w": (w.values * 100).round(2),
-            "target_val": tgt_val.values.round(2),
-            "target_shares": tgt_sh.values
-        })
+# --- SAFE ceny a dělení ---
+prices = pd.to_numeric(buy["close"], errors="coerce").replace([np.inf, -np.inf], np.nan)
+tgt_val = tgt_val.reindex(prices.index)  # zarovnat indexy
 
-        # obchodní plán
-        orders = []
-        for tkr, t_sh in tgt_sh.items():
-            have = int(round(cur_shares.get(tkr, 0)))
-            d = int(t_sh) - have
-            if d > 0:
-                orders.append([tkr, "BUY",  d, f"to reach {int(t_sh)}"])
-            elif d < 0:
-                orders.append([tkr, "SELL", -d, f"to reduce to {int(t_sh)}"])
+# kusy jen tam, kde je cena i target OK
+valid = prices.notna() & prices.ne(0) & tgt_val.notna()
+tgt_sh_float = pd.Series(0.0, index=prices.index, dtype="float64")
+tgt_sh_float.loc[valid] = (tgt_val.loc[valid] / prices.loc[valid]).values
 
-        plan = pd.DataFrame(orders, columns=["ticker", "action", "qty", "note"])
+# zaokrouhlení + loty BEZ pádu na NaN/Inf
+if lot > 1:
+    tgt_sh = safe_int_series(tgt_sh_float / lot, fill=0, clip_min=0,
+                             round_mode="round", use_nullable=True) * lot
+else:
+    tgt_sh = safe_int_series(tgt_sh_float, fill=0, clip_min=0,
+                             round_mode="round", use_nullable=True)
+
+targets = pd.DataFrame({
+    "ticker": w.index,
+    "target_w": (w.values * 100).round(2),
+    "target_val": tgt_val.reindex(w.index).values.round(2),
+    "target_shares": tgt_sh.reindex(w.index).fillna(0).astype("Int64").values
+})
+
+# obchodní plán
+orders = []
+for tkr, t_sh in tgt_sh.items():
+    have = int(round(float(cur_shares.get(tkr, 0) or 0)))
+    want = 0 if pd.isna(t_sh) else int(t_sh)  # nullable -> int
+    d = want - have
+    if d > 0:
+        orders.append([tkr, "BUY",  d, f"to reach {want}"])
+    elif d < 0:
+        orders.append([tkr, "SELL", -d, f"to reach {want}"])
 
         # řazení plánu podle počtu kusů
         if not plan.empty:

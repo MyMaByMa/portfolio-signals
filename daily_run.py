@@ -353,8 +353,10 @@ def main():
         if s > 1.0:
             w = w / s
 
-       # cílové hodnoty a kusy
-tgt_val = (capital * w).rename("target_val")
+    # kolik kapitálu chceme rozdělit (čte se z config.yaml)
+    cap_cfg = (cfg.get("risk", {}) or {}).get("capital_total", cfg.get("capital_total", 25000))
+    capital = float(cap_cfg)
+    tgt_val = (capital * w).rename("target_val")
 
 # --- SAFE ceny a dělení ---
 prices = pd.to_numeric(buy["close"], errors="coerce").replace([np.inf, -np.inf], np.nan)

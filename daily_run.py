@@ -358,8 +358,44 @@ def main():
     capital = float(cap_cfg)
     tgt_val = (capital * w).rename("target_val")
 
-# --- SAFE ceny a dělení ---
-prices = pd.to_numeric(buy["close"], errors="coerce").replace([np.inf, -np.inf], np.nan)
+# --- získání cen (poslední Close) pro w.index ---
+def _last_close_series(tickers):
+    data = yf.download(list(tickers), period="5d", interval="1d",
+                       auto_adjust=False, group_by="ticker",
+                       threads=True, progress=False)
+    close_map = {}
+    for t in tickers:
+        try:
+            if isinstance(data.columns, pd.MultiIndex):
+                s = data[(t, "Close")].dropna()
+            else:
+                s = data["Close"].dropna()
+            close_map[t] = float(s.iloc[-1]) if len(s) else np.nan
+        except Exception:
+            close_map[t] = np.nan
+    return pd.Series(close_map, index=tickers, dtype="float64")
+
+# 1) pokud máš někde dataframe s cenami, použij ho (volitelné)
+prices = None
+for cand in ("df_prices", "info_df", "signals_df", "df"):  # dosaď, pokud něco takového v kódu máš
+    if cand in locals() and isinstance(locals()[cand], pd.DataFrame):
+        df0 = locals()[cand]
+        if "ticker" in df0.columns:
+            for col in ("close", "Close", "Cena", "last", "price"):
+                if col in df0.columns:
+                    prices = pd.to_numeric(df0.set_index("ticker")[col], errors="coerce")
+                    break
+        if prices is not None:
+            break
+
+# 2) fallback: stáhni poslední Close z yfinance
+if prices is None:
+    prices = _last_close_series(w.index)
+
+# očista
+prices = pd.to_numeric(prices, errors="coerce").replace([np.inf, -np.inf], np.nan)
+prices = prices.reindex(w.index)
+
 tgt_val = tgt_val.reindex(prices.index)  # zarovnat indexy
 
 # kusy jen tam, kde je cena i target OK
